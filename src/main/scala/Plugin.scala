@@ -35,16 +35,19 @@ case class Conflict(resources:Set[Resource], classpathes:Set[Classpath])
 object Plugin extends sbt.Plugin {
   import sbt._
 
-  val conflictClasses = TaskKey[Unit]("conflict-classes", "show conflict classes in classpath")
+  val conflictClasses = TaskKey[Unit]("conflict-classes", "Show conflict classes in classpath")
+  val conflictClassExcludes = TaskKey[Seq[String]]("conflict-class-excludes", "Exclude pattern for conflict checking. Check is done by `path startWith pattern`.")
 
   override lazy val settings =
-    forConfig(Compile) ++ forConfig(Test) ++ forConfig(Runtime)
+    forConfig(Compile) ++ forConfig(Test) ++ forConfig(Runtime) ++ Seq(
+      conflictClassExcludes := Seq("META-INF/")
+    )
 
   def forConfig(config:Configuration) = inConfig(config)(Seq(
-    conflictClasses <<= (Keys.dependencyClasspath in config, Keys.streams) map { (cps, s) =>
+    conflictClasses <<= (conflictClassExcludes, Keys.dependencyClasspath in config, Keys.streams) map { (excludes, cps, s) =>
       printConflicts(
         s.log,
-        buildConflicts(cps.map(cp => Classpath(cp.data))) )
+        buildConflicts(cps.map(cp => Classpath(cp.data)), excludes) )
     }
   ))
 
@@ -62,14 +65,13 @@ object Plugin extends sbt.Plugin {
     }
   }
 
-  def buildConflicts(cps:Seq[Classpath]):Seq[Conflict] = {
+  def buildConflicts(cps:Seq[Classpath], excludes:Seq[String]):Seq[Conflict] = {
     val resourceToCps:Map[Resource, Seq[Classpath]] =
       cps.foldLeft(Map[Resource, Seq[Classpath]]()) {(map, cp) =>
         cp
           .listResources
           .filter { res =>
-            !res.name.endsWith("/") &&
-            !res.name.startsWith("META-INF/")
+            !res.name.endsWith("/") && !excludes.exists(ex => res.name.startsWith(ex))
           }
           .foldLeft(map) {(map, res) => map + (res -> (map.getOrElse(res, Seq()) :+ cp)) }
       }
