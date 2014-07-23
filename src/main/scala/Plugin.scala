@@ -6,22 +6,19 @@ case class JarPath(asFile:java.io.File)
 case class JarEntry(name:String)
 case class ConflictEntry(entries:Set[JarEntry], jars:Set[JarPath])
 
-object Plugin extends sbt.AutoPlugin {
+object Plugin extends sbt.Plugin {
   import sbt._
 
   object autoImport {
-    val conflictClasses = taskKey[Unit]("show conflict entries in classpath")
+    val conflictClasses = TaskKey[Unit]("conflict-classes", "show conflict classes in classpath")
   }
   import autoImport._
-
-  override def trigger = allRequirements
 
   override val projectSettings =
     forConfig(Compile)
 
-  def forConfig(config:Configuration):Seq[sbt.Def.Setting[_]] = inConfig(config)(seq(
-    conflictClasses := {
-      val cps = (Keys.dependencyClasspath in config).value
+  def forConfig(config:Configuration) = inConfig(config)(Seq(
+    conflictClasses := (Keys.dependencyClasspath in config) map { (cps) =>
       val conflicts = buildConflicts(cps.map(_.data))
 
       conflicts.foreach {conflict:ConflictEntry =>
