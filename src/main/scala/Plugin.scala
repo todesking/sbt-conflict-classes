@@ -41,22 +41,26 @@ object Plugin extends sbt.Plugin {
     forConfig(Compile) ++ forConfig(Test) ++ forConfig(Runtime)
 
   def forConfig(config:Configuration) = inConfig(config)(Seq(
-    conflictClasses <<= (Keys.dependencyClasspath in config) map { cps =>
-      val conflicts = buildConflicts(cps.map(cp => Classpath(cp.data)))
-
-      println("Listing conflict classes:")
-      conflicts.foreach {conflict:Conflict =>
-        println(s"Found conflict classes in:")
-        conflict.classpathes.toSeq.sortBy(_.asFile.name).foreach { jar =>
-          println(s"    ${jar.asFile}")
-        }
-        println(s"  with classes:")
-        conflict.resources.toSeq.sortBy(_.name).foreach { entry =>
-          println(s"    ${entry.name}")
-        }
-      }
+    conflictClasses <<= (Keys.dependencyClasspath in config, Keys.streams) map { (cps, s) =>
+      printConflicts(
+        s.log,
+        buildConflicts(cps.map(cp => Classpath(cp.data))) )
     }
   ))
+
+  def printConflicts(log:Logger, conflicts:Seq[Conflict]):Unit = {
+    log.info("Listing conflict classes:")
+    conflicts.foreach {conflict:Conflict =>
+      log.info(s"Found conflict classes in:")
+      conflict.classpathes.toSeq.sortBy(_.asFile.name).foreach { jar =>
+        log.info(s"    ${jar.asFile}")
+      }
+      log.info(s"  with classes:")
+      conflict.resources.toSeq.sortBy(_.name).foreach { entry =>
+        log.info(s"    ${entry.name}")
+      }
+    }
+  }
 
   def buildConflicts(cps:Seq[Classpath]):Seq[Conflict] = {
     val resourceToCps:Map[Resource, Seq[Classpath]] =
