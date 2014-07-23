@@ -2,9 +2,35 @@ package com.todesking.sbt_dependency_doctor
 
 import java.io.File
 
-case class JarPath(asFile:java.io.File)
-case class JarEntry(name:String)
-case class ConflictEntry(entries:Set[JarEntry], jars:Set[JarPath])
+case class Classpath(asFile:File) {
+  def listResources():Seq[Resource] = {
+    asFile match {
+      case f if f.isDirectory => listFromDirectory(f)
+      case f if f.isFile => listFromJar(f)
+      case _ => Seq()
+    }
+  }
+
+  private[this] def listFromDirectory(root:File, prefix:Seq[String] = Seq()):Seq[Resource] = {
+    import scala.collection.JavaConverters._
+    root.listFiles().flatMap { f =>
+      f match {
+        case f if(f.isFile) => Seq(Resource((prefix :+ f.getName).mkString("/")))
+        case f if(f.isDirectory) => listFromDirectory(f, prefix :+ f.getName)
+      }
+    }
+  }
+
+  private[this] def listFromJar(file:File) = {
+    import scala.collection.JavaConverters._
+    new java.util.jar.JarFile(file)
+      .entries.asScala
+      .map { e => Resource(e.getName) }
+      .toSeq
+  }
+}
+case class Resource(name:String)
+case class Conflict(resources:Set[Resource], classpathes:Set[Classpath])
 
 object Plugin extends sbt.Plugin {
   import sbt._
@@ -16,46 +42,42 @@ object Plugin extends sbt.Plugin {
 
   def forConfig(config:Configuration) = inConfig(config)(Seq(
     conflictClasses <<= (Keys.dependencyClasspath in config) map { cps =>
-      val conflicts = buildConflicts(cps.map(_.data))
+      val conflicts = buildConflicts(cps.map(cp => Classpath(cp.data)))
 
       println("Listing conflict classes:")
-      conflicts.foreach {conflict:ConflictEntry =>
-        println(s"Found conflict classes in jars:")
-        conflict.jars.toSeq.sortBy(_.asFile.name).foreach { jar =>
+      conflicts.foreach {conflict:Conflict =>
+        println(s"Found conflict classes in:")
+        conflict.classpathes.toSeq.sortBy(_.asFile.name).foreach { jar =>
           println(s"    ${jar.asFile}")
         }
         println(s"  with classes:")
-        conflict.entries.toSeq.sortBy(_.name).foreach { entry =>
+        conflict.resources.toSeq.sortBy(_.name).foreach { entry =>
           println(s"    ${entry.name}")
         }
       }
     }
   ))
 
-  def buildConflicts(jars:Seq[File]):Seq[ConflictEntry] = {
-    import java.util.{jar => java}
-    import scala.collection.JavaConverters._
-
-    val jarFiles = jars.map(jar => new java.JarFile(jar))
-
-    val entryToJars:Map[JarEntry, Seq[JarPath]] =
-      jarFiles.foldLeft(Map[JarEntry, Seq[JarPath]]()) {(map, jar) =>
-        val jarPath = JarPath(new File(jar.getName))
-        jar.entries.asScala.map(e => JarEntry(e.getName))
-          .filter { entry =>
-            !entry.name.endsWith("/") &&
-            !entry.name.startsWith("META-INF/")
+  def buildConflicts(cps:Seq[Classpath]):Seq[Conflict] = {
+    val resourceToCps:Map[Resource, Seq[Classpath]] =
+      cps.foldLeft(Map[Resource, Seq[Classpath]]()) {(map, cp) =>
+        cp
+          .listResources
+          .filter { res =>
+            !res.name.endsWith("/") &&
+            !res.name.startsWith("META-INF/")
           }
-          .foldLeft(map) {(map, entry) => map + (entry -> (map.getOrElse(entry, Seq()) :+ jarPath)) }
+          .foldLeft(map) {(map, res) => map + (res -> (map.getOrElse(res, Seq()) :+ cp)) }
       }
 
-    val jarsToEntries:Map[Set[JarPath], Set[JarEntry]] = entryToJars.foldLeft(Map[Set[JarPath], Set[JarEntry]]()) { (map, kv) =>
-      kv match { case (entry, jars) =>
-        val jarSet = jars.toSet
-        map + (jarSet -> (map.getOrElse(jarSet, Set()) + entry))
+    val cpsToResources:Map[Set[Classpath], Set[Resource]] =
+      resourceToCps.foldLeft(Map[Set[Classpath], Set[Resource]]()) { (map, kv) =>
+      kv match { case (res, cps) =>
+        val cpSet = cps.toSet
+        map + (cpSet -> (map.getOrElse(cpSet, Set()) + res))
       }
     }
 
-    jarsToEntries.filter { case (jars, _) => jars.size > 1 }.map {case (jars, entries) => ConflictEntry(entries, jars) }.toSeq
+    cpsToResources.filter { case (cps, _) => cps.size > 1 }.map {case (cps, resources) => Conflict(resources, cps) }.toSeq
   }
 }
