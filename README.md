@@ -2,12 +2,22 @@
 
 ## Usage
 
-```sbt
+```scala
 // project/plugins.sbt
 
 resolvers += "com.todesking" at "http://todesking.github.io/mvn/"
 
 addSbtPlugin("com.todesking" %% "sbt-conflict-classes" % "0.0.1")
+```
+
+```scala
+// build.sbt
+
+// Exclude from conflict detection(match with startsWith)(Optional)
+conflictClassExcludes ++= Seq(
+  "com/todesking/example/DuplicateClass.class",
+  "com/todesking/example/dups/"
+)
 ```
 
 ```
