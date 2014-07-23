@@ -51,13 +51,13 @@ object Plugin extends sbt.Plugin {
   def printConflicts(log:Logger, conflicts:Seq[Conflict]):Unit = {
     log.info("Listing conflict classes:")
     conflicts.foreach {conflict:Conflict =>
-      log.info(s"Found conflict classes in:")
+      log.info("Found conflict classes in:")
       conflict.classpathes.toSeq.sortBy(_.asFile.name).foreach { jar =>
-        log.info(s"    ${jar.asFile}")
+        log.info("    " + jar.asFile.getPath)
       }
-      log.info(s"  with classes:")
+      log.info("  with classes:")
       conflict.resources.toSeq.sortBy(_.name).foreach { entry =>
-        log.info(s"    ${entry.name}")
+        log.info("    " + entry.name)
       }
     }
   }
