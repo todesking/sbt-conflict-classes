@@ -3,6 +3,6 @@ organization := "com.todesking.example"
 name := "example"
 
 libraryDependencies ++= Seq(
-  "org.apache.hbase" % "hbase" % "0.94.3" % "compile",
-  "org.specs2" %% "specs2" % "2.2" % "test"
+  "commons-beanutils" % "commons-beanutils" % "1.7.0",
+  "commons-collections" % "commons-collections" % "3.2.1"
 )
