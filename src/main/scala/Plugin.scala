@@ -9,18 +9,16 @@ case class ConflictEntry(entries:Set[JarEntry], jars:Set[JarPath])
 object Plugin extends sbt.Plugin {
   import sbt._
 
-  object autoImport {
-    val conflictClasses = TaskKey[Unit]("conflict-classes", "show conflict classes in classpath")
-  }
-  import autoImport._
+  val conflictClasses = TaskKey[Unit]("conflict-classes", "show conflict classes in classpath")
 
-  override val projectSettings =
-    forConfig(Compile)
+  override lazy val settings =
+    forConfig(Compile) ++ forConfig(Test) ++ forConfig(Runtime)
 
   def forConfig(config:Configuration) = inConfig(config)(Seq(
-    conflictClasses := (Keys.dependencyClasspath in config) map { (cps) =>
+    conflictClasses <<= (Keys.dependencyClasspath in config) map { cps =>
       val conflicts = buildConflicts(cps.map(_.data))
 
+      println("Listing conflict classes:")
       conflicts.foreach {conflict:ConflictEntry =>
         println(s"Found conflict classes in jars:")
         conflict.jars.toSeq.sortBy(_.asFile.name).foreach { jar =>
