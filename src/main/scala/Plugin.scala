@@ -4,7 +4,7 @@ import java.io.File
 
 case class JarPath(asFile:java.io.File)
 case class JarEntry(name:String)
-case class ConflictEntry(entry:JarEntry, jars:Seq[JarPath])
+case class ConflictEntry(entries:Set[JarEntry], jars:Set[JarPath])
 
 object Plugin extends sbt.AutoPlugin {
   import sbt._
@@ -25,9 +25,13 @@ object Plugin extends sbt.AutoPlugin {
       val conflicts = buildConflicts(cps.map(_.data))
 
       conflicts.foreach {conflict:ConflictEntry =>
-        println(s"Conflict: ${conflict.entry.name}")
-        conflict.jars.foreach { jar =>
+        println(s"Found conflict classes in jars:")
+        conflict.jars.toSeq.sortBy(_.asFile.name).foreach { jar =>
           println(s"    ${jar.asFile}")
+        }
+        println(s"  with classes:")
+        conflict.entries.toSeq.sortBy(_.name).foreach { entry =>
+          println(s"    ${entry.name}")
         }
       }
     }
@@ -38,21 +42,25 @@ object Plugin extends sbt.AutoPlugin {
     import scala.collection.JavaConverters._
 
     val jarFiles = jars.map(jar => new java.JarFile(jar))
-    val entryMap:Map[JarEntry, Seq[JarPath]] =
-      jarFiles.aggregate(Map.empty[JarEntry, Seq[JarPath]]) ({(map, jar) =>
-        val jarPath = JarPath(new File(jar.getName))
-        jar.entries.asScala.map(e => JarEntry(e.getName)).
-          aggregate(map)({(map, entry) => map + (entry -> (map.getOrElse(entry, Seq()) :+ jarPath)) }, _ ++ _)
-      }, _ ++ _ )
 
-    entryMap.
-      filter(_ match { case (k, v) =>
-        !k.name.endsWith("/") &&
-        !k.name.startsWith("META-INF/")
-      }).
-      filter(_ match { case (k, v) => v.size > 1}).
-      map(_ match { case (k, v) => ConflictEntry(k, v) }).
-      toSeq.
-      sortBy(_.entry.name)
+    val entryToJars:Map[JarEntry, Seq[JarPath]] =
+      jarFiles.foldLeft(Map[JarEntry, Seq[JarPath]]()) {(map, jar) =>
+        val jarPath = JarPath(new File(jar.getName))
+        jar.entries.asScala.map(e => JarEntry(e.getName))
+          .filter { entry =>
+            !entry.name.endsWith("/") &&
+            !entry.name.startsWith("META-INF/")
+          }
+          .foldLeft(map) {(map, entry) => map + (entry -> (map.getOrElse(entry, Seq()) :+ jarPath)) }
+      }
+
+    val jarsToEntries:Map[Set[JarPath], Set[JarEntry]] = entryToJars.foldLeft(Map[Set[JarPath], Set[JarEntry]]()) { (map, kv) =>
+      kv match { case (entry, jars) =>
+        val jarSet = jars.toSet
+        map + (jarSet -> (map.getOrElse(jarSet, Set()) + entry))
+      }
+    }
+
+    jarsToEntries.filter { case (jars, _) => jars.size > 1 }.map {case (jars, entries) => ConflictEntry(entries, jars) }.toSeq
   }
 }
