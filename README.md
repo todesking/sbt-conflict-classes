@@ -1,5 +1,6 @@
 # sbt-conflict-classes: List conflict classes in classpath  [![Build Status](https://secure.travis-ci.org/todesking/sbt-conflict-classes.png?branch=master)](http://travis-ci.org/todesking/sbt-conflict-classes)
 
+
 ## Usage
 
 ```scala
@@ -7,7 +8,7 @@
 
 resolvers += "com.todesking" at "http://todesking.github.io/mvn/"
 
-addSbtPlugin("com.todesking" %% "sbt-conflict-classes" % "0.0.1")
+addSbtPlugin("com.todesking" %% "sbt-conflict-classes" % "0.0.2")
 ```
 
 ```scala
