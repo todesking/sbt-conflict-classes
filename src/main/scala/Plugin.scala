@@ -35,7 +35,7 @@ case class Conflict(resources:Set[Resource], classpathes:Set[Classpath])
 object Plugin extends sbt.Plugin {
   import sbt._
 
-  val conflictClasses = TaskKey[Unit]("conflict-classes", "Show conflict classes in classpath")
+  val conflictClasses = TaskKey[Seq[Conflict]]("conflict-classes", "Show conflict classes in classpath")
   val conflictClassExcludes = TaskKey[Seq[String]]("conflict-class-excludes", "Exclude pattern for conflict checking. Check is done by `path startWith pattern`.")
 
   override lazy val settings =
@@ -45,9 +45,9 @@ object Plugin extends sbt.Plugin {
 
   def forConfig(config:Configuration) = inConfig(config)(Seq(
     conflictClasses <<= (conflictClassExcludes, Keys.dependencyClasspath in config, Keys.streams) map { (excludes, cps, s) =>
-      printConflicts(
-        s.log,
-        buildConflicts(cps.map(cp => Classpath(cp.data)), excludes) )
+      val conflicts = buildConflicts(cps.map(cp => Classpath(cp.data)), excludes)
+      printConflicts(s.log, conflicts)
+      conflicts
     }
   ))
 
