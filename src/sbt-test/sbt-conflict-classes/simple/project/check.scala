@@ -1,5 +1,5 @@
 import sbt._
-import com.todesking.sbt_conflict_classes.{Conflict, Plugin, Resource}
+import com.todesking.sbt_conflict_classes.{Conflict, ConflictClassesPlugin, Resource}
 
 object check {
 
@@ -19,13 +19,15 @@ object check {
     "commons-collections-3.2.1.jar"
   )
 
-  val setting = TaskKey[Unit]("check") <<= (Plugin.conflictClasses in Compile).map{
-    case Seq(conflict) =>
-      assert(conflict.resources == expectResources, conflict.resources + " is not equals " + expectResources.toString)
-      val classpath = conflict.classpathes.map(_.asFile.getName)
-      assert(classpath == expectClasspath, classpath + " is not equals " + expectClasspath.toString)
-    case other =>
-      assert(false, other)
+  val setting = TaskKey[Unit]("check") := {
+    (ConflictClassesPlugin.autoImport.conflictClasses in Compile).value match {
+      case Seq(conflict) =>
+        assert(conflict.resources == expectResources, conflict.resources + " is not equals " + expectResources.toString)
+        val classpath = conflict.classpathes.map(_.asFile.getName)
+        assert(classpath == expectClasspath, classpath + " is not equals " + expectClasspath.toString)
+      case other =>
+        assert(false, other)
+    }
   }
 
 }

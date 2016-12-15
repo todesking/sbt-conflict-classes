@@ -10,3 +10,5 @@ conflictClassExcludes ++= Seq(
 )
 
 check.setting
+
+enablePlugins(ConflictClassesPlugin)
