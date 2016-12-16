@@ -32,21 +32,25 @@ case class Classpath(asFile:File) {
 case class Resource(name:String)
 case class Conflict(resources:Set[Resource], classpathes:Set[Classpath])
 
-object Plugin extends sbt.Plugin {
+object ConflictClassesPlugin extends sbt.AutoPlugin {
   import sbt._
 
-  val conflictClasses = TaskKey[Seq[Conflict]]("conflict-classes", "Show conflict classes in classpath")
-  val conflictClassExcludes = TaskKey[Seq[String]]("conflict-class-excludes", "Exclude pattern for conflict checking. Check is done by `path startWith pattern`.")
+  object autoImport {
+    val conflictClasses = TaskKey[Seq[Conflict]]("conflict-classes", "Show conflict classes in classpath")
+    val conflictClassExcludes = TaskKey[Seq[String]]("conflict-class-excludes", "Exclude pattern for conflict checking. Check is done by `path startWith pattern`.")
+  }
 
-  override lazy val settings =
+  import autoImport._
+
+  override lazy val projectSettings =
     forConfig(Compile) ++ forConfig(Test) ++ forConfig(Runtime) ++ Seq(
       conflictClassExcludes := Seq("META-INF/")
     )
 
   def forConfig(config:Configuration) = inConfig(config)(Seq(
-    conflictClasses <<= (conflictClassExcludes, Keys.dependencyClasspath in config, Keys.streams) map { (excludes, cps, s) =>
-      val conflicts = buildConflicts(cps.map(cp => Classpath(cp.data)), excludes)
-      printConflicts(s.log, conflicts)
+    conflictClasses := {
+      val conflicts = buildConflicts((Keys.dependencyClasspath in config).value.map(cp => Classpath(cp.data)), conflictClassExcludes.value)
+      printConflicts(Keys.streams.value.log, conflicts)
       conflicts
     }
   ))

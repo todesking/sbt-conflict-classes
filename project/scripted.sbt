@@ -1,1 +1,1 @@
-libraryDependencies <+= sbtVersion("org.scala-sbt" % "scripted-plugin" % _)
+libraryDependencies += "org.scala-sbt" % "scripted-plugin" % sbtVersion.value
